@@ -1,0 +1,44 @@
+[
+  {
+    "id": "emp_demo_1",
+    "userId": "usr_admin_1",
+    "cnpj": "00.360.305/0001-04",
+    "razao_social": "CAIXA ECONOMICA FEDERAL",
+    "nome_fantasia": "CAIXA ECONOMICA FEDERAL",
+    "situacao_cadastral": "Ativa",
+    "data_abertura": "12/01/1971",
+    "capital_social": "R$ 26.500.000.000,00",
+    "natureza_juridica": "201-1 - Empresa Pública",
+    "regime_tributario": "Lucro Real",
+    "inscricao_estadual": "ISENTO",
+    "ie_situacao_cadastral": "Ativa",
+    "ie_regime_apuracao": "Não Aplicável",
+    "ie_data_situacao": "12/01/1971",
+    "inscricao_municipal": "1.234.567-8",
+    "data_atualizacao_ccm": "2026",
+    "im_ultima_atualizacao": "2026",
+    "cnae_principal": {
+      "codigo": "6422-1/00",
+      "descricao": "Bancos múltiplos, com carteira comercial"
+    },
+    "cnaes_secundarios": [],
+    "nire": "35212345678",
+    "objeto_social": "Atividades bancárias e de intermediação financeira.",
+    "endereco": {
+      "cep": "70070-100",
+      "logradouro": "Setor Bancário Sul Quadra 4 Bloco A",
+      "numero": "Lote 3/4",
+      "complemento": "ED. CAIXA",
+      "bairro": "Asa Sul",
+      "municipio": "Brasília",
+      "uf": "DF"
+    },
+    "qsa": [],
+    "fonte_dados": {
+      "cnpj_api": true,
+      "ocr_ia": true
+    },
+    "createdAt": "2026-07-27T17:30:00.490Z",
+    "updatedAt": "2026-07-27T17:30:00.490Z"
+  }
+]

@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidApuracao(data) {
+      return data.keys().hasAll(['periodoApuracao', 'valorReceita', 'atividadeSelecionada', 'foiRetificadora', 'status', 'dataHora'])
+        && data.periodoApuracao is string && data.periodoApuracao.size() <= 20
+        && data.valorReceita is string && data.valorReceita.size() <= 50
+        && data.atividadeSelecionada is string && data.atividadeSelecionada.size() <= 100
+        && data.foiRetificadora is bool
+        && data.status is string && data.status.size() <= 100
+        && data.dataHora is string && data.dataHora.size() <= 50
+        && (!('nomeEmpresa' in data) || (data.nomeEmpresa is string && data.nomeEmpresa.size() <= 200));
+    }
+
+    function isValidEmpresa(data) {
+      return data.keys().hasAll(['receitaFederal', 'juntaComercial', 'inscricaoEstadual', 'inscricaoMunicipal', 'metadata'])
+        && data.receitaFederal is map
+        && data.juntaComercial is map
+        && data.inscricaoEstadual is map
+        && data.inscricaoMunicipal is map
+        && data.metadata is map;
+    }
+
+    function isValidUsuario(data) {
+      return data.keys().hasAll(['nome', 'email'])
+        && data.nome is string && data.nome.size() <= 200
+        && data.email is string && data.email.size() <= 200;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /historico_apuracoes/{apuracaoId} {
+      allow read: if true;
+      allow create: if isValidApuracao(request.resource.data);
+      allow update: if isValidApuracao(request.resource.data);
+      allow delete: if true;
+    }
+
+    match /empresas/{empresaId} {
+      allow read: if true;
+      allow create: if isValidEmpresa(request.resource.data);
+      allow update: if isValidEmpresa(request.resource.data);
+      allow delete: if true;
+    }
+
+    match /usuarios/{userId} {
+      allow read: if true;
+      allow create: if isValidUsuario(request.resource.data);
+      allow update: if isValidUsuario(request.resource.data);
+      allow delete: if true;
+    }
+  }
+}

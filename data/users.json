@@ -1,0 +1,20 @@
+[
+  {
+    "id": "usr_admin_1",
+    "name": "Administrador Contábil",
+    "email": "admin@contabil.ia",
+    "password": "$2b$10$Y6HXDYaeqva0Oqiva3VsRu7YMsCteY75H2WQlkQyJG1jtpdk7I6DG",
+    "role": "ADMIN",
+    "createdAt": "2026-07-27T17:27:33.550Z",
+    "updatedAt": "2026-07-27T17:27:33.550Z"
+  },
+  {
+    "id": "usr_1785173253692_s8jf8",
+    "name": "teste",
+    "email": "teste@teste.com",
+    "password": "$2b$10$49ZSwFdpd1SoE7bfpQ4tze9LblzcMOLe0X2fxZrM0gAHkH0yWbRHa",
+    "role": "USER",
+    "createdAt": "2026-07-27T17:27:33.692Z",
+    "updatedAt": "2026-07-27T17:27:33.692Z"
+  }
+]

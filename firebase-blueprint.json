@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "HistoricoApuracao": {
+      "title": "Histórico de Apurações",
+      "description": "Registros de apurações e emissões de DAS realizadas pelo usuário.",
+      "type": "object",
+      "properties": {
+        "cnpj": {
+          "type": "string",
+          "description": "CNPJ da empresa"
+        },
+        "nomeEmpresa": {
+          "type": "string",
+          "description": "Nome empresarial extraído do portal"
+        },
+        "periodoApuracao": {
+          "type": "string",
+          "description": "Período de apuração (MM/AAAA)"
+        },
+        "valorReceita": {
+          "type": "string",
+          "description": "Valor da Receita Bruta (Mercado Interno)"
+        },
+        "atividadeSelecionada": {
+          "type": "string",
+          "description": "Identificador da atividade econômica selecionada"
+        },
+        "foiRetificadora": {
+          "type": "boolean",
+          "description": "Indica se a apuração foi uma declaração retificadora"
+        },
+        "status": {
+          "type": "string",
+          "description": "Status da operação (ex: 'Calculado', 'Transmitido com Sucesso', 'Aguardando Transmissão', 'Erro')"
+        },
+        "dataHora": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data e hora do registro em formato ISO"
+        },
+        "valorDas": {
+          "type": "string",
+          "description": "Valor do DAS calculado (opcional)"
+        },
+        "mensagem": {
+          "type": "string",
+          "description": "Mensagem ou observação do sistema"
+        },
+        "userId": {
+          "type": "string",
+          "description": "ID do usuário responsável"
+        }
+      },
+      "required": ["periodoApuracao", "valorReceita", "atividadeSelecionada", "foiRetificadora", "status", "dataHora"]
+    },
+    "Empresa": {
+      "title": "Empresa",
+      "description": "Cadastro completo de empresa dividido nas 4 esferas: Receita Federal, Junta Comercial, Inscrição Estadual e Inscrição Municipal.",
+      "type": "object",
+      "properties": {
+        "receitaFederal": {
+          "type": "object",
+          "description": "Dados da Receita Federal (CNPJ, Razão Social, CNAEs, etc.)"
+        },
+        "juntaComercial": {
+          "type": "object",
+          "description": "Dados da Junta Comercial (NIRE, Objeto Social, Endereço, Sócios)"
+        },
+        "inscricaoEstadual": {
+          "type": "object",
+          "description": "Dados da Inscrição Estadual (Cadesp)"
+        },
+        "inscricaoMunicipal": {
+          "type": "object",
+          "description": "Dados da Inscrição Municipal (FDC)"
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Metadados de cadastro (dataCadastro, userId)"
+        }
+      },
+      "required": ["receitaFederal", "juntaComercial", "inscricaoEstadual", "inscricaoMunicipal", "metadata"]
+    },
+    "Usuario": {
+      "title": "Usuário",
+      "description": "Registro de usuários cadastrados no sistema.",
+      "type": "object",
+      "properties": {
+        "nome": {
+          "type": "string",
+          "description": "Nome completo do usuário"
+        },
+        "email": {
+          "type": "string",
+          "description": "Endereço de e-mail do usuário"
+        },
+        "cargo": {
+          "type": "string",
+          "description": "Cargo ou papel do usuário (ADMIN, USER, etc.)"
+        },
+        "dataCriacao": {
+          "type": "string",
+          "description": "Data de criação do registro (serverTimestamp)"
+        }
+      },
+      "required": ["nome", "email"]
+    }
+  },
+  "firestore": {
+    "/historico_apuracoes/{apuracaoId}": {
+      "schema": "HistoricoApuracao",
+      "description": "Coleção de histórico de todas as apurações do Simples Nacional."
+    },
+    "/empresas/{empresaId}": {
+      "schema": "Empresa",
+      "description": "Coleção de cadastros de empresas contendo dados da Receita Federal, Junta Comercial, Cadesp e FDC."
+    },
+    "/usuarios/{userId}": {
+      "schema": "Usuario",
+      "description": "Coleção de dados e perfis de usuários do sistema."
+    }
+  }
+}

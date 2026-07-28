@@ -1,0 +1,6 @@
+{
+  "name": "Contabil.IA",
+  "description": "Plataforma de Contabilidade Inteligente com automação de cadastros, consulta de CNPJ e extração de dados societários via IA.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
