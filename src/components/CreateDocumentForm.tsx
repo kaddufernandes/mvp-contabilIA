@@ -19,8 +19,9 @@ import {
   Building,
 } from 'lucide-react';
 import { EmpresaData } from '../types';
-import { getAuthHeaders } from '../lib/apiClient';
 import { jsPDF } from 'jspdf';
+// NOVO IMPORT LIGANDO DIRETO AO FIREBASE
+import { getCompaniesStore } from '../lib/companiesStore';
 
 interface CreateDocumentFormProps {
   onNavigate?: (path: string) => void;
@@ -57,7 +58,7 @@ export const CreateDocumentForm: React.FC<CreateDocumentFormProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load companies from API on mount
+  // 1. CHAMADA DIRETA AO FIREBASE BYPASSANDO A API
   useEffect(() => {
     fetchCompanies();
   }, []);
@@ -65,16 +66,11 @@ export const CreateDocumentForm: React.FC<CreateDocumentFormProps> = ({
   const fetchCompanies = async () => {
     setLoadingCompanies(true);
     try {
-      const res = await fetch('/api/companies', {
-        headers: {
-          ...getAuthHeaders(),
-        },
-      });
-      const data = await res.json();
-      if (data.success && Array.isArray(data.companies)) {
-        setCompanies(data.companies);
-        if (!selectedCompany && data.companies.length > 0) {
-          setSelectedCompany(data.companies[0]);
+      const data = await getCompaniesStore();
+      if (data && Array.isArray(data)) {
+        setCompanies(data);
+        if (!selectedCompany && data.length > 0) {
+          setSelectedCompany(data[0]);
         }
       }
     } catch (err) {

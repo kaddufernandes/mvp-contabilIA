@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { EmpresaData } from '../types';
 import { getAuthHeaders } from '../lib/apiClient';
+// NOVO IMPORT LIGANDO DIRETO AO FIREBASE
+import { getCompaniesStore } from '../lib/companiesStore';
 
 interface FiscalSimulacaoFormProps {
   onNavigate?: (path: string) => void;
@@ -109,7 +111,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
     const regimeLower = (regime || '').toLowerCase();
 
     if (regimeLower.includes('simples')) {
-      // Simples Nacional: 6% para Serviços (Anexo III) + 4% para Comércio (Anexo I)
       const valServ = servicos * 0.06;
       const valCom = comercio * 0.04;
       const totalImposto = valServ + valCom;
@@ -131,7 +132,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
     } else if (regimeLower.includes('presumido') || regimeLower.includes('real')) {
       const isReal = regimeLower.includes('real');
       if (isReal) {
-        // Lucro Real: Abatimento de Entradas e Crédito do PIS/COFINS
         const lucroApurado = Math.max(0, totalReceita - despesas);
         const pisDebito = totalReceita * 0.0165;
         const pisCredito = despesas * 0.0165;
@@ -164,7 +164,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
             : 'Nota: No Lucro Real, IRPJ e CSLL dependem do balanço do período.',
         };
       } else {
-        // Lucro Presumido
         const calc_pis = totalReceita * 0.0065;
         const calc_cofins = totalReceita * 0.03;
         const calc_irpj = totalReceita * 0.048;
@@ -207,18 +206,15 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
     }
   };
 
-  // Fetch user companies
+  // CHAMADA DIRETA AO FIREBASE BYPASSANDO A API
   useEffect(() => {
     async function loadCompanies() {
       setIsLoadingCompanies(true);
       try {
-        const res = await fetch('/api/companies', {
-          headers: { ...getAuthHeaders() },
-        });
-        const data = await res.json();
-        if (data.success && Array.isArray(data.companies) && data.companies.length > 0) {
-          setCompanies(data.companies);
-          setSelectedCompanyId(data.companies[0].id || data.companies[0].cnpj);
+        const data = await getCompaniesStore();
+        if (data && Array.isArray(data) && data.length > 0) {
+          setCompanies(data);
+          setSelectedCompanyId(data[0].id || data[0].cnpj);
         } else {
           // Fallback mock companies if user has no saved company yet
           const fallbackList: EmpresaData[] = [
@@ -262,7 +258,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
   const processTxtFile = async (file: File) => {
     setAuditAlert(null);
 
-    // 1. Captura Dinâmica do CNPJ da Empresa Selecionada
     const targetCnpj = selectedCompany?.cnpj ? selectedCompany.cnpj.replace(/\D/g, '') : '';
 
     if (!targetCnpj) {
@@ -310,7 +305,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
         return;
       }
 
-      // 2. Sucesso na resposta do Servidor
       setUploadedFile(file);
       const valNum = typeof data.valorTotal === 'number' ? data.valorTotal : parseFloat(data.valorTotal || 0);
       const formattedValue = formatCurrency(valNum.toFixed(2).replace('.', ','));
@@ -339,7 +333,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
     }
   };
 
-  // Handle Drag & Drop
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -365,7 +358,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
     }
   };
 
-  // Manual inputs handlers com máscara BRL
   const handleReceitaServicosChange = (val: string) => {
     const formatted = formatCurrency(val);
     setReceitaServicos(formatted);
@@ -387,7 +379,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
     setResultadoImpostos(null);
   };
 
-  // Perform Calculation on Button Click
   const handleCalcularImpostos = () => {
     setCalculating(true);
     setTimeout(() => {
@@ -517,7 +508,7 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
           </div>
         </div>
 
-        {/* ALERTA DE AUDITORIA DE CNPJ (NOTIFICAÇÃO VISUAL DE ERRO OU SUCESSO) */}
+        {/* ALERTA DE AUDITORIA DE CNPJ */}
         {auditAlert && (
           <div
             className={`p-4 rounded-xl border flex items-center space-x-3 text-xs font-semibold animate-fadeIn ${
@@ -540,7 +531,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
         {/* OPÇÃO A: UPLOAD DE ARQUIVO TXT / PREFEITURA */}
         {inputMethod === 'file' ? (
           <div className="space-y-4">
-            {/* SELETOR DE TIPO DE ARQUIVO (SAÍDA / ENTRADA) */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-emerald-600" />
@@ -717,7 +707,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
           </div>
         )}
 
-        {/* BOTÃO DE AÇÃO REPOSICIONADO NO FLUXO DE ENTRADA */}
         <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center space-x-2 text-xs text-slate-500">
             <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -746,7 +735,7 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
         </div>
       </div>
 
-      {/* 4. RESUMO DA SIMULAÇÃO (CARD DE PRÉVIA - EXIBIDO APENAS SE isCalculated) */}
+      {/* 4. RESUMO DA SIMULAÇÃO */}
       {isCalculated && resultadoImpostos && (
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 space-y-6 shadow-xs text-slate-900 relative overflow-hidden animate-fadeIn">
           <div className="flex items-center justify-between border-b border-slate-200 pb-4">
@@ -760,7 +749,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
             </span>
           </div>
 
-          {/* AUDITORIA VISUAL: CLIENTE DETECTADO */}
           {clienteDetectado && (
             <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center space-x-2 text-xs text-emerald-900 animate-fadeIn">
               <Building2 className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -771,7 +759,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
             </div>
           )}
 
-          {/* AVISO DE AUDITORIA DO REGIME */}
           {resultadoImpostos.avisoVisual && (
             <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start space-x-2.5 text-xs text-amber-900 animate-fadeIn">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -779,9 +766,7 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
             </div>
           )}
 
-          {/* METRICS CARDS */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Metric 1: Faturamento Total */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 Faturamento Total (Mês)
@@ -792,7 +777,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
               <p className="text-[10px] text-slate-500">Soma de Serviços + Comércio</p>
             </div>
 
-            {/* Metric 2: Alíquota Estimada */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
               <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                 Alíquota Efetiva Estimada
@@ -803,7 +787,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
               <p className="text-[10px] text-slate-500 truncate">{resultadoImpostos.descricaoAliquota}</p>
             </div>
 
-            {/* Metric 3: Total de Impostos */}
             <div className="p-4 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl space-y-1">
               <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block truncate">
                 Total de Impostos Estimados
@@ -815,7 +798,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
             </div>
           </div>
 
-          {/* LISTA E DETALHAMENTO DAS GUIAS (MAP) */}
           <div className="space-y-3 pt-2">
             <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center space-x-2">
               <Receipt className="w-4 h-4 text-emerald-600" />
@@ -835,7 +817,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
                 </div>
               ))}
 
-              {/* LINHA DE DESTAQUE NO FINAL COM O TOTAL */}
               <div className="p-4 bg-slate-900 text-white flex items-center justify-between text-xs font-bold">
                 <span className="uppercase tracking-wider">Total de Impostos Estimados</span>
                 <span className="text-sm font-mono text-emerald-400">
@@ -845,7 +826,6 @@ export const FiscalSimulacaoForm: React.FC<FiscalSimulacaoFormProps> = ({ onNavi
             </div>
           </div>
 
-          {/* 5. AÇÕES FINAIS */}
           <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-4">
             <button
               type="button"

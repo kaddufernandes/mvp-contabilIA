@@ -1,58 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Building2,
-  Plus,
-  Search,
-  RefreshCw,
-  MapPin,
-  FileText,
-  Landmark,
-  Eye,
-  CheckCircle2,
-  Sparkles,
-  AlertCircle,
-  Hash,
-  Trash2,
+  Building2, Plus, Search, RefreshCw, MapPin, FileText, Landmark, Eye, CheckCircle2, Sparkles, AlertCircle, Hash, Trash2,
 } from 'lucide-react';
 import { EmpresaData } from '../types';
 import { getAuthHeaders } from '../lib/apiClient';
 import { validateEmpresaCompleta } from '../lib/schemas/empresaSchema';
+// NOVO IMPORT LIGANDO O DASHBOARD DIRETO AO FIREBASE
+import { getCompaniesStore, deleteCompanyStore } from '../lib/companiesStore';
 
 interface EmpresasDashboardProps {
   onNavigate: (path: string) => void;
   onSelectEmpresa?: (empresa: EmpresaData) => void;
 }
 
-// Lógica de Semáforo baseada na completude do cadastro via Zod safeParse e status da Receita Federal
 export const isCadastroCompleto = (c: EmpresaData): boolean => {
   return validateEmpresaCompleta(c);
 };
 
 const getCompanyStatusColor = (c: EmpresaData): string => {
   const situacao = (c.situacao_cadastral || (c as any).situacaoCadastral || (c as any).status || '').trim().toUpperCase();
-  if (situacao !== 'ATIVA') {
-    return 'bg-red-500';
-  }
-  if (!isCadastroCompleto(c)) {
-    return 'bg-amber-500';
-  }
+  if (situacao !== 'ATIVA') return 'bg-red-500';
+  if (!isCadastroCompleto(c)) return 'bg-amber-500';
   return 'bg-emerald-500';
 };
 
 const getCompanyStatusTitle = (c: EmpresaData): string => {
   const situacao = (c.situacao_cadastral || (c as any).situacaoCadastral || (c as any).status || 'ATIVA').trim();
-  if (situacao.toUpperCase() !== 'ATIVA') {
-    return `Irregular / Inativa (${situacao})`;
-  }
-  if (!isCadastroCompleto(c)) {
-    return 'Cadastro Incompleto (campos obrigatórios pendentes)';
-  }
+  if (situacao.toUpperCase() !== 'ATIVA') return `Irregular / Inativa (${situacao})`;
+  if (!isCadastroCompleto(c)) return 'Cadastro Incompleto (campos obrigatórios pendentes)';
   return 'Ativa e Completa';
 };
 
 export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
-  onNavigate,
-  onSelectEmpresa,
+  onNavigate, onSelectEmpresa,
 }) => {
   const [companies, setCompanies] = useState<EmpresaData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -63,26 +43,13 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
   const [empresaToDelete, setEmpresaToDelete] = useState<EmpresaData | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
+  // CHAMADA DIRETA AO FIREBASE BYPASSANDO A API
   const fetchCompanies = async () => {
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const res = await fetch('/api/companies', {
-        headers: {
-          ...getAuthHeaders(),
-        },
-      });
-      if (!res.ok) {
-        throw new Error(`Erro HTTP status: ${res.status}`);
-      }
-      const data = await res.json();
-      if (data.success && Array.isArray(data.companies)) {
-        setCompanies(data.companies);
-      } else if (Array.isArray(data)) {
-        setCompanies(data);
-      } else {
-        setCompanies([]);
-      }
+      const data = await getCompaniesStore();
+      setCompanies(data || []);
     } catch (err: any) {
       console.error('Erro ao buscar empresas:', err);
       setErrorMsg('Não foi possível carregar as empresas do banco de dados.');
@@ -102,22 +69,14 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
     }
   }, [toastMsg]);
 
+  // EXCLUSÃO DIRETA NO FIREBASE BYPASSANDO A API
   const handleConfirmDelete = async () => {
     if (!empresaToDelete) return;
     setIsDeleting(true);
     const targetId = empresaToDelete.id || empresaToDelete.cnpj.replace(/\D/g, '');
     try {
-      const res = await fetch(`/api/companies/${encodeURIComponent(targetId)}`, {
-        method: 'DELETE',
-        headers: {
-          ...getAuthHeaders(),
-        },
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Erro ao excluir empresa do banco de dados.');
-      }
-
+      await deleteCompanyStore(targetId);
+      
       setCompanies((prev) =>
         prev.filter((c) => (c.id && c.id !== empresaToDelete.id) || c.cnpj !== empresaToDelete.cnpj)
       );
@@ -139,7 +98,6 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
     }
   };
 
-  // Filtragem por busca (CNPJ ou Razão Social ou Nome Fantasia ou Município)
   const filteredCompanies = companies.filter((c) => {
     const term = searchTerm.toLowerCase().trim();
     if (!term) return true;
@@ -149,7 +107,7 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
       c.razao_social.toLowerCase().includes(term) ||
       (c.nome_fantasia && c.nome_fantasia.toLowerCase().includes(term)) ||
       (cleanCnpj && cleanTerm && cleanCnpj.includes(cleanTerm)) ||
-      c.cnpj.toLowerCase().includes(term) ||
+      (c.cnpj && c.cnpj.toLowerCase().includes(term)) ||
       (c.endereco?.municipio && c.endereco.municipio.toLowerCase().includes(term)) ||
       (c.endereco?.uf && c.endereco.uf.toLowerCase().includes(term))
     );
@@ -221,7 +179,6 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
             />
           </div>
 
-          {/* Legenda de Status */}
           <div className="flex items-center gap-4 text-xs text-slate-500 shrink-0">
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
@@ -266,17 +223,9 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
               <span>{toastMsg.desc}</span>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setToastMsg(null)}
-            className="text-slate-400 hover:text-slate-600 text-sm font-bold ml-4 cursor-pointer"
-          >
-            ✕
-          </button>
+          <button type="button" onClick={() => setToastMsg(null)} className="text-slate-400 hover:text-slate-600 text-sm font-bold ml-4 cursor-pointer">✕</button>
         </div>
       )}
-
-      {/* ERROR MESSAGE */}
 
       {errorMsg && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center justify-between">
@@ -284,11 +233,7 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
             <span>{errorMsg}</span>
           </div>
-          <button
-            type="button"
-            onClick={fetchCompanies}
-            className="text-xs font-bold text-rose-700 underline cursor-pointer"
-          >
+          <button type="button" onClick={fetchCompanies} className="text-xs font-bold text-rose-700 underline cursor-pointer">
             Tentar Novamente
           </button>
         </div>
@@ -339,27 +284,17 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {filteredCompanies.map((c, idx) => {
-                  const municipioUf = [c.endereco?.municipio, c.endereco?.uf]
-                    .filter(Boolean)
-                    .join(' / ');
+                  const municipioUf = [c.endereco?.municipio, c.endereco?.uf].filter(Boolean).join(' / ');
 
                   return (
-                    <tr
-                      key={c.id || c.cnpj || idx}
-                      className="hover:bg-slate-50/80 transition-colors"
-                    >
-                      {/* CNPJ COM INDICADOR DE STATUS (SEMÁFORO) */}
+                    <tr key={c.id || c.cnpj || idx} className="hover:bg-slate-50/80 transition-colors">
                       <td className="p-3.5 pl-5 font-mono font-bold text-slate-900 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          <div
-                            className={`w-2.5 h-2.5 rounded-full shrink-0 ${getCompanyStatusColor(c)}`}
-                            title={getCompanyStatusTitle(c)}
-                          />
+                          <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${getCompanyStatusColor(c)}`} title={getCompanyStatusTitle(c)} />
                           <span className="text-emerald-700">{c.cnpj || 'Não Informado'}</span>
                         </div>
                       </td>
 
-                      {/* RAZÃO SOCIAL */}
                       <td className="p-3.5 font-medium max-w-xs">
                         <div className="font-semibold text-slate-900 truncate">
                           {c.razao_social || 'Sem Razão Social'}
@@ -369,22 +304,15 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
                             {c.nome_fantasia}
                           </div>
                         )}
-                        {/* BADGES ORIGEM */}
                         <div className="flex items-center space-x-1 mt-1">
                           {c.nire && (
                             <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-mono font-semibold border border-purple-200">
                               NIRE: {c.nire}
                             </span>
                           )}
-                          {c.fonte_dados?.ocr_ia && (
-                            <span className="text-[10px] bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded flex items-center">
-                              <Sparkles className="w-2.5 h-2.5 mr-0.5" /> IA
-                            </span>
-                          )}
                         </div>
                       </td>
 
-                      {/* MUNICÍPIO / UF */}
                       <td className="p-3.5 text-slate-600 whitespace-nowrap">
                         <div className="flex items-center space-x-1">
                           <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -398,14 +326,12 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
                         )}
                       </td>
 
-                      {/* RESPONSÁVEL */}
                       <td className="p-3.5 whitespace-nowrap">
                         <span className="text-xs text-slate-500 font-medium">
                           {c.user?.name || 'Sistema'}
                         </span>
                       </td>
 
-                      {/* AÇÕES */}
                       <td className="p-3.5 text-center pr-5 whitespace-nowrap">
                         <div className="flex items-center justify-center space-x-2">
                           <button
@@ -461,17 +387,10 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setSelectedEmpresaModal(null)}
-                className="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer"
-              >
-                ✕
-              </button>
+              <button type="button" onClick={() => setSelectedEmpresaModal(null)} className="text-slate-400 hover:text-white text-lg font-bold p-1 cursor-pointer">✕</button>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-5 text-xs">
-              {/* DADOS BÁSICOS E CNPJ */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <h4 className="font-bold text-slate-800 uppercase text-[11px] tracking-wider text-emerald-800">
                   Identificação Federal (Receita)
@@ -489,97 +408,8 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
                     <span className="text-slate-500 block">Situação Cadastral:</span>
                     <span className="font-semibold text-emerald-700">{selectedEmpresaModal.situacao_cadastral}</span>
                   </div>
-                  <div>
-                    <span className="text-slate-500 block">Regime Tributário:</span>
-                    <span className="font-medium text-slate-800">{selectedEmpresaModal.regime_tributario}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Data Abertura:</span>
-                    <span className="font-medium text-slate-800">{selectedEmpresaModal.data_abertura || '-'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Capital Social:</span>
-                    <span className="font-medium text-slate-800">{selectedEmpresaModal.capital_social || '-'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Responsável pelo Cadastro:</span>
-                    <span className="font-semibold text-slate-800">{selectedEmpresaModal.user?.name || 'Sistema'}</span>
-                  </div>
                 </div>
               </div>
-
-              {/* JUNTA COMERCIAL (NIRE & OBJETO SOCIAL) */}
-              <div className="p-4 bg-purple-50/60 rounded-xl border border-purple-200 space-y-3">
-                <h4 className="font-bold text-purple-900 uppercase text-[11px] tracking-wider">
-                  Registro Societário (Junta Comercial)
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-slate-500 block">NIRE:</span>
-                    <span className="font-mono font-bold text-purple-950">{selectedEmpresaModal.nire || 'Não registrado'}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block">Objeto Social:</span>
-                    <span className="text-slate-800 leading-relaxed block">{selectedEmpresaModal.objeto_social || 'Não informado'}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* INSCRIÇÃO ESTADUAL E MUNICIPAL */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-blue-50/60 rounded-xl border border-blue-200 space-y-2">
-                  <h4 className="font-bold text-blue-900 uppercase text-[11px] tracking-wider">
-                    Inscrição Estadual (SEFAZ / CADESP)
-                  </h4>
-                  <p><span className="text-slate-500">Inscrição Estadual:</span> <strong className="font-mono">{selectedEmpresaModal.inscricao_estadual || 'Isento/Não informado'}</strong></p>
-                  <p><span className="text-slate-500">Situação:</span> {selectedEmpresaModal.ie_situacao_cadastral || '-'}</p>
-                  <p><span className="text-slate-500">Regime Apuração:</span> {selectedEmpresaModal.ie_regime_apuracao || '-'}</p>
-                </div>
-
-                <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200 space-y-2">
-                  <h4 className="font-bold text-amber-900 uppercase text-[11px] tracking-wider">
-                    Inscrição Municipal (Prefeitura / CCM)
-                  </h4>
-                  <p><span className="text-slate-500">Inscrição Municipal:</span> <strong className="font-mono">{selectedEmpresaModal.inscricao_municipal || 'Não informada'}</strong></p>
-                  <p><span className="text-slate-500">Atualização FDC:</span> {selectedEmpresaModal.data_atualizacao_ccm || '-'}</p>
-                </div>
-              </div>
-
-              {/* ENDEREÇO SEDE */}
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                <h4 className="font-bold text-slate-800 uppercase text-[11px] tracking-wider flex items-center">
-                  <MapPin className="w-3.5 h-3.5 mr-1 text-slate-600" /> Endereço Sede
-                </h4>
-                <p className="text-slate-700">
-                  {selectedEmpresaModal.endereco?.logradouro} {selectedEmpresaModal.endereco?.numero ? `, nº ${selectedEmpresaModal.endereco.numero}` : ''}
-                  {selectedEmpresaModal.endereco?.complemento ? ` (${selectedEmpresaModal.endereco.complemento})` : ''} - {selectedEmpresaModal.endereco?.bairro}
-                </p>
-                <p className="text-slate-600 font-mono">
-                  {selectedEmpresaModal.endereco?.municipio} / {selectedEmpresaModal.endereco?.uf} - CEP: {selectedEmpresaModal.endereco?.cep}
-                </p>
-              </div>
-
-              {/* SÓCIOS */}
-              {selectedEmpresaModal.qsa && selectedEmpresaModal.qsa.length > 0 && (
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                  <h4 className="font-bold text-slate-800 uppercase text-[11px] tracking-wider">
-                    Quadro de Sócios ({selectedEmpresaModal.qsa.length})
-                  </h4>
-                  <div className="space-y-1.5">
-                    {selectedEmpresaModal.qsa.map((s, idx) => (
-                      <div key={idx} className="p-2 bg-white rounded border border-slate-200 flex items-center justify-between">
-                        <div>
-                          <p className="font-bold text-slate-800">{s.nome}</p>
-                          <p className="text-slate-500 text-[11px]">{s.qualificacao}</p>
-                        </div>
-                        <div className="text-right font-mono text-slate-600">
-                          {s.cpf_cnpj || '-'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
 
             <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end space-x-3">
@@ -590,23 +420,12 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
               >
                 Fechar
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const emp = selectedEmpresaModal;
-                  setSelectedEmpresaModal(null);
-                  handleOpenEdit(emp);
-                }}
-                className="px-4 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl cursor-pointer"
-              >
-                Editar Empresa
-              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO (ALERTDIALOG) */}
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
       {empresaToDelete && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fadeIn">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-xl overflow-hidden border border-slate-200 p-6 space-y-4">
@@ -619,16 +438,8 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
                   Excluir Empresa?
                 </h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Tem certeza que deseja excluir o cadastro desta empresa? Esta ação não poderá ser desfeita e todos os dados vinculados serão perdidos.
+                  Tem certeza que deseja excluir o cadastro desta empresa?
                 </p>
-                <div className="mt-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <p className="font-bold text-xs text-slate-800 truncate">
-                    {empresaToDelete.razao_social}
-                  </p>
-                  <p className="font-mono text-[11px] text-slate-500 mt-0.5">
-                    CNPJ: {empresaToDelete.cnpj || 'Não informado'}
-                  </p>
-                </div>
               </div>
             </div>
 
@@ -645,16 +456,9 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
                 type="button"
                 onClick={handleConfirmDelete}
                 disabled={isDeleting}
-                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5 disabled:opacity-50"
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               >
-                {isDeleting ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Excluindo...</span>
-                  </>
-                ) : (
-                  <span>Sim, Excluir</span>
-                )}
+                Sim, Excluir
               </button>
             </div>
           </div>
@@ -663,4 +467,3 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
     </div>
   );
 };
-

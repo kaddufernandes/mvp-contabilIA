@@ -120,15 +120,15 @@ app.get("/api/cnpj/:cnpj", async (req, res) => {
       capital_social: data.capital_social ? Number(data.capital_social) : 0,
       natureza_juridica: data.natureza_juridica || "",
       regime_tributario: data.opcao_pelo_simples ? "Simples Nacional" : "Lucro Presumido / Real",
-      inscricao_estadual: "", // A Receita Federal não retorna IE diretamente
+      inscricao_estadual: "", 
       inscricao_municipal: "",
       cnae_principal: {
         codigo: String(data.cnae_fiscal || ""),
         descricao: data.cnae_fiscal_descricao || "Não informado",
       },
       cnaes_secundarios: cnaesSecundarios,
-      nire: "", // Não vem da Receita Federal, será preenchido via OCR/PDF ou manual
-      objeto_social: "", // Não vem detalhado da Receita Federal, será preenchido via OCR/PDF
+      nire: "", 
+      objeto_social: "", 
       endereco: {
         cep: formattedCep || data.cep || "",
         logradouro: logradouroStr || "",
@@ -182,7 +182,6 @@ app.post("/api/ocr-document", async (req, res) => {
 
     console.log(`[OCR API] Processando documento (${extractionType}): ${fileName || "documento.pdf"} (${mimeType || "application/pdf"})`);
 
-    // Remove data prefix if sent as data URL (e.g. data:application/pdf;base64,...)
     const cleanBase64 = fileBase64.replace(/^data:[^;]+;base64,/, "");
 
     const ai = getGeminiClient();
@@ -449,7 +448,6 @@ app.post("/api/fiscal/parse-txt", upload.single("file"), async (req, res) => {
     const textContent = file.buffer.toString("utf-8");
     const lines = textContent.split(/\r?\n/);
 
-    // 1. Validação se o CNPJ da empresa consta no arquivo TXT
     let cnpjValido = false;
     for (const line of lines) {
       if (!line.trim()) continue;
@@ -467,7 +465,6 @@ app.post("/api/fiscal/parse-txt", upload.single("file"), async (req, res) => {
       });
     }
 
-    // 2. Processamento posicional e extração de valores e contraparte (Manual SP v4.09)
     let totalValoresLocal = 0;
     let contraparteLocal = "";
     let valorRodapeTipo9 = 0;
@@ -477,7 +474,6 @@ app.post("/api/fiscal/parse-txt", upload.single("file"), async (req, res) => {
       if (!line.trim()) continue;
       const tipoRegistro = line.charAt(0);
 
-      // Linha Tipo '9' - Rodapé Oficial com Totalizador (Pos 9 a 23 -> substring(8, 23))
       if (tipoRegistro === "9") {
         if (line.length >= 23) {
           const strTotal = line.substring(8, 23).trim();
@@ -493,7 +489,6 @@ app.post("/api/fiscal/parse-txt", upload.single("file"), async (req, res) => {
         }
       }
 
-      // Linha Tipo '2' - Detalhe da Nota Fiscal
       if (tipoRegistro === "2") {
         let valorNota = 0;
 
@@ -513,7 +508,6 @@ app.post("/api/fiscal/parse-txt", upload.single("file"), async (req, res) => {
 
         somaDetalheTipo2 += valorNota;
 
-        // Extração do Nome da Contraparte
         if (!contraparteLocal) {
           if (line.length >= 240) {
             const subNome = line.substring(180, 240).trim();
@@ -606,8 +600,6 @@ const handleRpaSimplesNacional = async (req: express.Request, res: express.Respo
       });
     }
 
-    // Regra 1: Mock Inteligente no Backend
-    // Se o codigoAcesso for exatamente "Aa123456" ou estiver vazio, simula falha 401
     if (!cleanCodigo || cleanCodigo === "Aa123456") {
       console.log(`[RPA Simples Nacional API] Código de Acesso '${cleanCodigo}' detectado. Retornando erro 401 (Código de acesso inválido).`);
       return res.status(401).json({
@@ -620,8 +612,7 @@ const handleRpaSimplesNacional = async (req: express.Request, res: express.Respo
       });
     }
 
-    // Validação de enquadramento da empresa (Simples Nacional)
-    const allCompanies = getCompaniesStore();
+    const allCompanies = await getCompaniesStore();
     const foundCompany = allCompanies.find(
       (c) => (c.cnpj || "").replace(/\D/g, "") === cleanCnpj
     );
@@ -647,17 +638,18 @@ const handleRpaSimplesNacional = async (req: express.Request, res: express.Respo
         codigoAcesso: cleanCodigo,
       });
 
-      if (foundCompany?.razao_social) {
-        rpaResult.razaoSocial = foundCompany.razao_social;
-      }
+      let razaoSocial = foundCompany?.razao_social || "Empresa Selecionada";
 
-      // SOMENTE AQUI, com a tela logada e confirmada via DOM, o sucesso é retornado!
+      // RETORNO LIMPO: Somente o necessário para exibir a mensagem e status ajustados
       return res.status(200).json({
         sucesso: true,
         success: true,
-        mensagem: "Conexão estabelecida com sucesso.",
-        message: "Conexão estabelecida com sucesso.",
-        ...rpaResult,
+        razaoSocial,
+        cnpj: rpaResult.cnpj,
+        cpf: rpaResult.cpf,
+        timestamp: rpaResult.timestamp,
+        mensagem: rpaResult.message,
+        message: rpaResult.message,
       });
     } catch (rpaError: any) {
       console.error("[RPA Simples Nacional Error]:", rpaError?.message || rpaError);
@@ -1198,8 +1190,6 @@ Retorne APENAS o documento inteiro reescrito com a alteração solicitada.`;
   }
 });
 
-
-
 import { getAuthenticatedUserFromRequest } from "./src/lib/authHelper";
 import { getUsersStore, updateUserStore, deleteUserStore } from "./src/lib/usersStore";
 
@@ -1316,7 +1306,7 @@ app.get("/api/companies", async (req, res) => {
     }
 
     const isAdmin = user.role === 'ADMIN';
-    const companies = isAdmin ? getCompaniesStore() : getCompaniesStore(user.id);
+    const companies = isAdmin ? await getCompaniesStore() : await getCompaniesStore(user.id);
     return res.json({
       success: true,
       companies,
@@ -1348,9 +1338,9 @@ app.post("/api/companies", async (req, res) => {
       });
     }
 
-    // Injetar o userId da sessão do usuário autenticado diretamente
-    const savedCompany = saveCompanyStore(companyData, user.id);
-    console.log(`[Companies API] Empresa cadastrada/atualizada para o usuário ${user.email}: ${savedCompany.razao_social}`);
+    companyData.metadata = { ...companyData.metadata, userId: user.id };
+    const savedCompanyId = await saveCompanyStore(companyData);
+    const savedCompany = { ...companyData, id: savedCompanyId };
 
     return res.status(201).json({
       success: true,
@@ -1384,15 +1374,7 @@ app.delete("/api/companies/:id", async (req, res) => {
       });
     }
 
-    const deleted = deleteCompanyStore(id, user.id);
-    if (!deleted) {
-      return res.status(404).json({
-        success: false,
-        error: "Empresa não encontrada para exclusão ou pertencente a outro usuário.",
-      });
-    }
-
-    console.log(`[Companies API] Empresa deletada pelo usuário ${user.email}: ${id}`);
+    await deleteCompanyStore(id);
     return res.json({
       success: true,
       message: "Empresa excluída com sucesso!",

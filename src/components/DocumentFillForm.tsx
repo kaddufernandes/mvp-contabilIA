@@ -15,7 +15,8 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { EmpresaData } from '../types';
-import { getAuthHeaders } from '../lib/apiClient';
+// NOVO IMPORT LIGANDO DIRETO AO FIREBASE
+import { getCompaniesStore } from '../lib/companiesStore';
 
 interface DocumentFillFormProps {
   onNavigate?: (path: string) => void;
@@ -58,25 +59,13 @@ export const DocumentFillForm: React.FC<DocumentFillFormProps> = ({ onNavigate }
     return URL.createObjectURL(blob);
   };
 
-  // 1. Fetch companies from database
+  // 1. CHAMADA DIRETA AO FIREBASE BYPASSANDO A API
   const fetchCompanies = async () => {
     setIsLoadingCompanies(true);
     setErrorMsg(null);
     try {
-      const res = await fetch('/api/companies', {
-        headers: {
-          ...getAuthHeaders(),
-        },
-      });
-      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.companies)) {
-        setCompanies(data.companies);
-      } else if (Array.isArray(data)) {
-        setCompanies(data);
-      } else {
-        setCompanies([]);
-      }
+      const data = await getCompaniesStore();
+      setCompanies(data || []);
     } catch (err: any) {
       console.error('Erro ao carregar empresas para preenchimento:', err);
       setErrorMsg('Não foi possível carregar as empresas do banco de dados.');
@@ -93,7 +82,7 @@ export const DocumentFillForm: React.FC<DocumentFillFormProps> = ({ onNavigate }
   const handleCompanySelect = (companyId: string) => {
     setSelectedCompanyId(companyId);
     const company = companies.find(
-      (c) => c.id === companyId || c.cnpj === companyId || c.cnpj.replace(/\D/g, '') === companyId
+      (c) => c.id === companyId || c.cnpj === companyId || (c.cnpj && c.cnpj.replace(/\D/g, '') === companyId)
     );
 
     if (company) {
