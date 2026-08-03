@@ -13,6 +13,7 @@ import {
   Lock,
   Layers,
 } from 'lucide-react';
+import { EconomicIndicatorsWidget } from './EconomicIndicatorsWidget';
 
 interface HomePageProps {
   onNavigate: (path: string) => void;
@@ -60,6 +61,11 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* WIDGET DE INDICADORES ECONÔMICOS */}
+      <section>
+        <EconomicIndicatorsWidget />
       </section>
 
       {/* RECURSOS / FUNCIONALIDADES PRINCIPAIS */}

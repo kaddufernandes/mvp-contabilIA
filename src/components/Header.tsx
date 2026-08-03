@@ -29,35 +29,35 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
   const [isCadastrosOpen, setIsCadastrosOpen] = useState(false);
   const [isJuridicoOpen, setIsJuridicoOpen] = useState(false);
   const [isFiscalOpen, setIsFiscalOpen] = useState(false);
+  const [isRhOpen, setIsRhOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   
   const cadastrosRef = useRef<HTMLDivElement>(null);
   const juridicoRef = useRef<HTMLDivElement>(null);
   const fiscalRef = useRef<HTMLDivElement>(null);
+  const rhRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   const isAuthenticated = status === 'authenticated' && !!session?.user;
 
   const handleNav = (path: string, e: React.MouseEvent) => {
+    e.preventDefault();
     setIsCadastrosOpen(false);
     setIsJuridicoOpen(false);
     setIsFiscalOpen(false);
+    setIsRhOpen(false);
     setIsProfileOpen(false);
 
-    // Se tentar acessar rota restrita deslogado, intercepta e abre modal de login
     if (!isAuthenticated && path !== '/') {
-      e.preventDefault();
       openLoginModal(`Faça login para acessar a área "${path}".`);
       return;
     }
 
     if (onNavigate) {
-      e.preventDefault();
       onNavigate(path);
     }
   };
 
-  // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (cadastrosRef.current && !cadastrosRef.current.contains(event.target as Node)) {
@@ -68,6 +68,9 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
       }
       if (fiscalRef.current && !fiscalRef.current.contains(event.target as Node)) {
         setIsFiscalOpen(false);
+      }
+      if (rhRef.current && !rhRef.current.contains(event.target as Node)) {
+        setIsRhOpen(false);
       }
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false);
@@ -87,12 +90,13 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
     currentPath === '/documentos/criar' ||
     currentPath.startsWith('/documentos');
 
-  const isFiscal = currentPath === '/fiscal/simulacao' || currentPath.startsWith('/fiscal');
+  const isFiscal = currentPath.startsWith('/fiscal');
+  const isRh = currentPath.startsWith('/rh');
 
   const isPreenchimento = currentPath === '/preenchimento-documentos' || currentPath.startsWith('/preenchimento');
   const isCriarDocumento = currentPath === '/documentos/criar' || currentPath.startsWith('/documentos');
-  const isSimulacaoFiscal = currentPath === '/fiscal/simulacao';
   const isAcessoEcac = currentPath === '/fiscal/acesso-ecac' || currentPath.startsWith('/fiscal/acesso-ecac');
+  const isRhCalculos = currentPath === '/rh/calculos' || currentPath.startsWith('/rh/calculos');
 
   return (
     <header className="bg-slate-900 text-white border-b border-slate-800 shadow-lg sticky top-0 z-40">
@@ -118,10 +122,10 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
           </Link>
         </div>
 
-        {/* Navigation Links (Apenas se ESTIVER Logado) */}
+        {/* Navigation Links */}
         {isAuthenticated ? (
           <nav className="flex items-center space-x-1 sm:space-x-2">
-            {/* Dropdown Menu para Cadastros (Empresas / Usuários) */}
+            {/* Cadastros */}
             <div className="relative" ref={cadastrosRef}>
               <button
                 type="button"
@@ -129,6 +133,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
                   setIsCadastrosOpen(!isCadastrosOpen);
                   setIsJuridicoOpen(false);
                   setIsFiscalOpen(false);
+                  setIsRhOpen(false);
                 }}
                 className={`inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isCadastros
@@ -141,7 +146,6 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
                 <ChevronDown className={`w-3.5 h-3.5 ml-1.5 transition-transform duration-200 ${isCadastrosOpen ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Popover Dropdown Menu Cadastros */}
               {isCadastrosOpen && (
                 <div className="absolute left-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl py-2 z-50 animate-fadeIn">
                   <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-700/60 mb-1">
@@ -166,7 +170,6 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
                     </div>
                   </Link>
 
-                  {/* Sub-menu de Usuários visível APENAS para ADMIN (RBAC) */}
                   {session?.user?.role === 'ADMIN' && (
                     <Link
                       href="/usuarios"
@@ -193,13 +196,15 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
               )}
             </div>
 
-            {/* Dropdown Menu para Jurídico */}
+            {/* Jurídico */}
             <div className="relative" ref={juridicoRef}>
               <button
                 type="button"
                 onClick={() => {
                   setIsJuridicoOpen(!isJuridicoOpen);
+                  setIsCadastrosOpen(false);
                   setIsFiscalOpen(false);
+                  setIsRhOpen(false);
                 }}
                 className={`inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isJuridico
@@ -212,7 +217,6 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
                 <ChevronDown className={`w-3.5 h-3.5 ml-1.5 transition-transform duration-200 ${isJuridicoOpen ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Popover Dropdown Menu Jurídico */}
               {isJuridicoOpen && (
                 <div className="absolute left-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl py-2 z-50 animate-fadeIn">
                   <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-700/60 mb-1">
@@ -261,13 +265,15 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
               )}
             </div>
 
-            {/* Dropdown Menu para Fiscal */}
+            {/* Fiscal */}
             <div className="relative" ref={fiscalRef}>
               <button
                 type="button"
                 onClick={() => {
                   setIsFiscalOpen(!isFiscalOpen);
                   setIsJuridicoOpen(false);
+                  setIsCadastrosOpen(false);
+                  setIsRhOpen(false);
                 }}
                 className={`inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isFiscal
@@ -280,33 +286,11 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
                 <ChevronDown className={`w-3.5 h-3.5 ml-1.5 transition-transform duration-200 ${isFiscalOpen ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Popover Dropdown Menu Fiscal */}
               {isFiscalOpen && (
                 <div className="absolute left-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl py-2 z-50 animate-fadeIn">
                   <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-700/60 mb-1">
                     Gestão Fiscal & Tributária
                   </div>
-
-                  <Link
-                    href="/fiscal/simulacao"
-                    onClick={(e) => handleNav('/fiscal/simulacao', e)}
-                    className={`flex items-center space-x-3 px-3.5 py-2.5 mx-1 rounded-xl text-xs font-semibold transition-colors ${
-                      isSimulacaoFiscal
-                        ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-bold'
-                        : 'text-slate-200 hover:bg-slate-700/80 hover:text-white'
-                    }`}
-                  >
-                    <div className="p-1.5 bg-emerald-500/20 rounded-lg text-emerald-300">
-                      <Calculator className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <span className="block text-slate-100 font-bold flex items-center gap-1.5">
-                        Simulação de Imposto
-                        <span className="px-1.5 py-0.2 bg-emerald-500/30 text-emerald-300 text-[9px] rounded-md font-bold">DAS</span>
-                      </span>
-                      <span className="block text-[10px] text-slate-400 font-normal">Cálculo e prévia do Simples Nacional</span>
-                    </div>
-                  </Link>
 
                   <Link
                     href="/fiscal/acesso-ecac"
@@ -322,10 +306,61 @@ export const Header: React.FC<HeaderProps> = ({ currentPath = '/', onNavigate })
                     </div>
                     <div>
                       <span className="block text-slate-100 font-bold flex items-center gap-1.5">
-                        Acesso Direto
+                        Emissão imposto
                         <span className="px-1.5 py-0.2 bg-emerald-500/30 text-emerald-300 text-[9px] rounded-md font-bold">Simples</span>
                       </span>
                       <span className="block text-[10px] text-slate-400 font-normal">Autenticação e robô do Simples Nacional</span>
+                    </div>
+                  </Link>
+                </div>
+              )}
+            </div>
+
+            {/* RH */}
+            <div className="relative" ref={rhRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRhOpen(!isRhOpen);
+                  setIsFiscalOpen(false);
+                  setIsJuridicoOpen(false);
+                  setIsCadastrosOpen(false);
+                }}
+                className={`inline-flex items-center justify-center px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  isRh
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs ring-2 ring-emerald-500/30'
+                    : 'bg-transparent text-slate-300 hover:text-white hover:bg-slate-800'
+                }`}
+              >
+                <Users className={`w-4 h-4 mr-1.5 ${isRh ? 'text-white' : 'text-emerald-400'}`} />
+                <span>RH</span>
+                <ChevronDown className={`w-3.5 h-3.5 ml-1.5 transition-transform duration-200 ${isRhOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isRhOpen && (
+                <div className="absolute left-0 mt-2 w-64 bg-slate-800 border border-slate-700 rounded-2xl shadow-2xl py-2 z-50 animate-fadeIn">
+                  <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-700/60 mb-1">
+                    Departamento Pessoal
+                  </div>
+
+                  <Link
+                    href="/rh/calculos"
+                    onClick={(e) => handleNav('/rh/calculos', e)}
+                    className={`flex items-center space-x-3 px-3.5 py-2.5 mx-1 mt-1 rounded-xl text-xs font-semibold transition-colors ${
+                      isRhCalculos
+                        ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 font-bold'
+                        : 'text-slate-200 hover:bg-slate-700/80 hover:text-white'
+                    }`}
+                  >
+                    <div className="p-1.5 bg-emerald-500/20 rounded-lg text-emerald-300">
+                      <Calculator className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="block text-slate-100 font-bold flex items-center gap-1.5">
+                        Cálculos
+                        <span className="px-1.5 py-0.2 bg-emerald-500/30 text-emerald-300 text-[9px] rounded-md font-bold">DP</span>
+                      </span>
+                      <span className="block text-[10px] text-slate-400 font-normal">Simulador de folha e férias</span>
                     </div>
                   </Link>
                 </div>

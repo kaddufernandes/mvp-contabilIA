@@ -258,7 +258,7 @@ export async function runEmitirDasRpa(params: EmitirDasParams) {
       throw new Error(`Erro na Receita: ${textR.replace(/×/g, '').trim()}`);
     }
 
-    // 8. CORREÇÃO SOLICITADA NA ATIVIDADE ECONÔMICA
+    // 8. SELECIONAR A ATIVIDADE
     console.log(`[RPA] Interagindo com a seleção de Atividade Econômica...`);
     
     const btnExpandir = page.locator('#btn-exibe-todos');
@@ -295,18 +295,39 @@ export async function runEmitirDasRpa(params: EmitirDasParams) {
     await page.click('#btn-salvar');
     await page.waitForLoadState('domcontentloaded');
 
-    // 9. DISTRIBUIR A RECEITA PARA A ATIVIDADE
+    // 9. DISTRIBUIR A RECEITA PARA A ATIVIDADE (NOVA REGRA DE UF E MUNICÍPIO APLICADA)
     console.log('[RPA] Inserindo a Receita na Tabela de Atividade...');
     await page.waitForSelector('.receita-valor', { state: 'visible', timeout: 15000 });
+    
+    if (params.ufIss) {
+      const ufSelect = page.locator('.receita-uf').first();
+      if (await ufSelect.count() > 0) {
+        console.log(`[RPA] Selecionando UF: ${params.ufIss}`);
+        await ufSelect.selectOption(params.ufIss);
+        // Aguarda a Receita carregar os municípios via AJAX após a seleção do estado
+        await page.waitForTimeout(1500); 
+      }
+    }
+
+    if (params.municipioIss) {
+      const municipioSelect = page.locator('.receita-codmunicipio').first();
+      if (await municipioSelect.count() > 0) {
+        console.log(`[RPA] Selecionando Município: ${params.municipioIss}`);
+        // Tenta selecionar pelo rótulo exato ou pelo código caso o sistema mande o código do IBGE
+        await municipioSelect.selectOption({ label: params.municipioIss }).catch(async () => {
+          await municipioSelect.selectOption(params.municipioIss as string);
+        });
+      }
+    }
+
     await digitarValorMonetario(page, '.receita-valor', receitaInterna);
     await page.click('.btn-calcular');
     await page.waitForLoadState('domcontentloaded');
 
-    // 10. CORREÇÃO SOLICITADA NOS VALORES FIXOS (BARREIRA DE VALIDAÇÃO ESTREITA)
-    console.log('[RPA] Verificando tela de Valores Fixos...');
+    // 10. VALORES FIXOS (SÓ PREENCHE SE O USUÁRIO MANDAR)
+    console.log('[RPA] Preenchendo tela de Valores Fixos (se informados)...');
     await page.waitForSelector('button[type="submit"]:has-text("Calcular")', { state: 'visible', timeout: 15000 });
     
-    // Regra rígida: Só vai preencher se o valor existir E for diferente de zero ou vazio
     const isValorValido = (v?: string) => v && v.trim() !== '' && v !== '0,00' && v !== '0';
 
     if (isValorValido(params.valorFixoIcms)) {
@@ -325,7 +346,6 @@ export async function runEmitirDasRpa(params: EmitirDasParams) {
       }
     }
 
-    // Se nenhum dos dois for válido, ele apenas clica em Calcular e passa direto
     await page.click('button[type="submit"]:has-text("Calcular")');
     await page.waitForLoadState('domcontentloaded');
 
