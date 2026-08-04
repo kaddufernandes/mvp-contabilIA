@@ -95,7 +95,7 @@ export async function runSimplesNacionalRpa(
 
     const btnContinuar = page.locator('.btn-continuar').first();
     await btnContinuar.click({ force: true }).catch(async () => {
-      await btnContinuar.evaluate(b => b.click());
+      await btnContinuar.evaluate((b: any) => b.click());
     });
 
     console.log('🚨 ATENÇÃO: Resolva o CAPTCHA! O robô vai aguardar o login. 🚨');

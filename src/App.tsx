@@ -11,6 +11,7 @@ import { DocumentFillForm } from './components/DocumentFillForm';
 import { CreateDocumentForm } from './components/CreateDocumentForm';
 import { FiscalSimulacaoForm } from './components/FiscalSimulacaoForm';
 import { AcessoEcacForm } from './components/AcessoEcacForm';
+import { HrSimulatorForm } from './components/HrSimulatorForm';
 import { UsersManagement } from './components/UsersManagement';
 import { LoginModal } from './components/LoginModal';
 import { Providers } from './components/Providers';
@@ -459,6 +460,9 @@ function AppContent() {
         ) : currentPath === '/fiscal/simulacao' || currentPath.startsWith('/fiscal') ? (
           /* TELA DE SIMULAÇÃO E AUDITORIA DO DAS (FISCAL) */
           <FiscalSimulacaoForm onNavigate={handleNavigate} />
+        ) : currentPath === '/rh/calculos' || currentPath.startsWith('/rh') ? (
+          /* TELA DE CÁLCULOS DE RH (SIMULADOR) */
+          <HrSimulatorForm />
         ) : currentPath === '/usuarios' || currentPath.startsWith('/usuarios') ? (
           /* TELA DE GESTÃO DE USUÁRIOS (RBAC) */
           <UsersManagement onNavigate={handleNavigate} />

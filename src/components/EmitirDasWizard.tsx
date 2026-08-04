@@ -174,7 +174,7 @@ export const EmitirDasWizard: React.FC<EmitirDasWizardProps> = ({
   };
 
   // ==========================================================
-  // EXECUÇÃO COMPLETA DO ROBÔ NO PGDAS-D
+  // EXECUÇÃO COMPLETA DA EMISSÃO VIA HTTP / RPA
   // ==========================================================
   const handleCalculateAndEmit = async (e?: React.SyntheticEvent) => {
     if (e) e.preventDefault();
@@ -188,28 +188,38 @@ export const EmitirDasWizard: React.FC<EmitirDasWizardProps> = ({
     const cleanCodigo = codigoAcesso.trim();
 
     try {
-      const cleanPayload = {
-        cnpj: String(cleanCnpj),
+      // 1. Tenta a automação via Engenharia Reversa de API (HTTP puro)
+      const emissaoPayload = {
         cpf: String(cleanCpf),
-        codigoAcesso: String(cleanCodigo),
-        periodoApuracao: String(periodoApuracao),
-        receitaMercadoInterno: String(receitaMercadoInterno),
-        receitaMercadoExterna: String(receitaMercadoExterna),
-        atividadeSelecionada: String(atividadeSelecionada),
-        ufIss: atividadeSelecionada === 'anexo_iii_outro_municipio' ? String(ufIss) : undefined,
-        municipioIss: atividadeSelecionada === 'anexo_iii_outro_municipio' ? String(municipioIss) : undefined,
-        valorReceita: String(receitaMercadoInterno),
-        transmitir: false, 
-        deveRetificar: Boolean(deveRetificar),
+        senha: String(cleanCodigo),
+        cnpj: String(cleanCnpj),
+        periodo: String(periodoApuracao),
+        receita: String(receitaMercadoInterno),
       };
 
-      const response = await fetch('/api/rpa/emitir-das', {
+      const parseResponseJson = async (res: Response) => {
+        const text = await res.text();
+        if (!text) return {};
+        try {
+          return JSON.parse(text);
+        } catch {
+          return { error: 'Resposta em formato inválido recebida do servidor.' };
+        }
+      };
+
+      let response = await fetch('/api/fiscal/emissao', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify(cleanPayload),
+        body: JSON.stringify(emissaoPayload),
       });
 
-      const data = await response.json();
+      let data = await parseResponseJson(response);
+
+      if (response.status === 403 && data.exigeCaptcha) {
+        setRobotError(data.mensagem || 'Desafio CAPTCHA detectado no Gov.br. Por favor, acione a barreira de resolução.');
+        setIsLoadingRobot(false);
+        return;
+      }
 
       if (response.status === 503 || data.status === 'sistema_governo_indisponivel') {
         setRobotError(data.mensagem || data.message || data.error || 'O sistema do Simples Nacional está fora do ar.');
@@ -218,7 +228,7 @@ export const EmitirDasWizard: React.FC<EmitirDasWizardProps> = ({
       }
 
       if (!response.ok || (!data.success && !data.sucesso)) {
-        throw new Error(data.error || data.mensagem || data.message || 'Erro desconhecido na apuração.');
+        throw new Error(data.error || data.mensagem || data.message || 'Erro na autenticação via HTTP. Verifique suas credenciais.');
       }
 
       setRobotResult(data);
@@ -233,7 +243,7 @@ export const EmitirDasWizard: React.FC<EmitirDasWizardProps> = ({
         foiRetificadora: Boolean(deveRetificar),
         status: 'Calculado com Sucesso',
         valorDas: data.valorTotalDas || data.valorDas || '',
-        mensagem: 'Apuração extraída com sucesso',
+        mensagem: 'Apuração realizada via HTTP com sucesso',
       }).catch(() => {});
 
     } catch (err: any) {

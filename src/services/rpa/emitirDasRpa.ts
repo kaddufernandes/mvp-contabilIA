@@ -140,9 +140,10 @@ export async function runEmitirDasRpa(params: EmitirDasParams) {
     
     const context = await browser.newContext({ viewport: null });
     const page = await context.newPage();
+    await page.bringToFront();
     
-    page.setDefaultNavigationTimeout(20000);
-    page.setDefaultTimeout(20000);
+    page.setDefaultNavigationTimeout(300000);
+    page.setDefaultTimeout(300000);
 
     const receitaInterna = params.receitaMercadoInterno || params.valorReceita || '0,00';
     const receitaExterna = params.receitaMercadoExterna || '0,00';
@@ -152,7 +153,7 @@ export async function runEmitirDasRpa(params: EmitirDasParams) {
 
     // 2. ABRIR SANFONA E CLICAR NO PGDAS
     console.log('[RPA] Abrindo sanfona Cálculo e Declaração...');
-    await page.waitForSelector('button[aria-controls="grupo_5"], a:has-text("PGDAS-D e DEFIS")', { state: 'attached', timeout: 15000 }).catch(() => {});
+    await page.waitForSelector('button[aria-controls="grupo_5"], a:has-text("PGDAS-D e DEFIS")', { state: 'attached', timeout: 60000 }).catch(() => {});
     
     const menuCalculo = page.locator('button[aria-controls="grupo_5"]').first();
     if ((await menuCalculo.count()) > 0 && await menuCalculo.isVisible()) {
@@ -162,7 +163,7 @@ export async function runEmitirDasRpa(params: EmitirDasParams) {
 
     console.log('[RPA] Acessando PGDAS-D...');
     const linkPgdas = page.locator('a:has-text("PGDAS-D e DEFIS")').first();
-    await linkPgdas.waitFor({ state: 'visible', timeout: 15000 });
+    await linkPgdas.waitFor({ state: 'visible', timeout: 60000 });
     await linkPgdas.click({ force: true });
 
     // 3. RESOLUÇÃO BLINDADA DO 2º CAPTCHA (INTACTA CONFORME SEU PEDIDO)
@@ -326,7 +327,7 @@ export async function runEmitirDasRpa(params: EmitirDasParams) {
 
     // 10. VALORES FIXOS (SÓ PREENCHE SE O USUÁRIO MANDAR)
     console.log('[RPA] Preenchendo tela de Valores Fixos (se informados)...');
-    await page.waitForSelector('button[type="submit"]:has-text("Calcular")', { state: 'visible', timeout: 15000 });
+    await page.waitForSelector('button[type="submit"]:has-text("Calcular"), input[type="submit"][value*="Calcular"], .btn-calcular, button:has-text("Calcular")', { state: 'visible', timeout: 30000 });
     
     const isValorValido = (v?: string) => v && v.trim() !== '' && v !== '0,00' && v !== '0';
 
@@ -346,14 +347,19 @@ export async function runEmitirDasRpa(params: EmitirDasParams) {
       }
     }
 
-    await page.click('button[type="submit"]:has-text("Calcular")');
-    await page.waitForLoadState('domcontentloaded');
+    const btnCalcularFixos = page.locator('button[type="submit"]:has-text("Calcular"), input[type="submit"][value*="Calcular"], .btn-calcular, button:has-text("Calcular")').first();
+    if (await btnCalcularFixos.count() > 0) {
+      await btnCalcularFixos.click();
+    }
+    await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('domcontentloaded'));
 
     // 11. TELA DE RESUMO E EXTRAÇÃO DE DADOS DA .table-bordered
     console.log('[RPA] Resumo alcançado! Extraindo Tributos...');
-    await page.waitForSelector('button:has-text("Transmitir")', { state: 'visible', timeout: 15000 });
+    // Aguarda o formulário de transmissão que contém a tabela de tributos do resumo
+    await page.waitForSelector('form[action*="Transmitir"] .table-bordered, form[action*="Transmitir"] table', { state: 'visible', timeout: 30000 });
     
-    const tableResumo = page.locator('.table-bordered').first();
+    // Usa a tabela dentro do form de transmissão (não a tabela de receitas do topo)
+    const tableResumo = page.locator('form[action*="Transmitir"] .table-bordered, form[action*="Transmitir"] table').first();
 
     const dadosCalculados = {
       irpj: await tableResumo.locator('tr').nth(1).locator('td').nth(0).innerText().catch(() => '0,00'),
@@ -367,8 +373,8 @@ export async function runEmitirDasRpa(params: EmitirDasParams) {
       total: await tableResumo.locator('tr').nth(1).locator('td').nth(8).innerText().catch(() => '0,00'),
     };
 
-    console.log('🚨 SUCESSO! Pausa visual de 10s para conferência antes de fechar...');
-    await page.waitForTimeout(10000);
+    console.log('🚨 SUCESSO! Extração concluída. Fechando o Chrome automaticamente...');
+    await page.waitForTimeout(500);
 
     return {
       success: true,

@@ -54,16 +54,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error('Erro ao buscar role do usuário:', e);
         }
         
-        setSession({
+        const sessionObj = {
           user: {
             id: user.uid,
             name: user.displayName,
             email: user.email,
             role: userRole,
           }
-        });
+        };
+        try {
+          localStorage.setItem('contabil_ia_session', JSON.stringify(sessionObj));
+        } catch (err) {
+          console.warn('Erro ao salvar sessão no localStorage:', err);
+        }
+        setSession(sessionObj);
         setStatus('authenticated');
       } else {
+        try {
+          localStorage.removeItem('contabil_ia_session');
+        } catch (err) {}
         setSession(null);
         setStatus('unauthenticated');
       }
