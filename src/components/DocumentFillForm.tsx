@@ -15,8 +15,9 @@ import {
   FileSpreadsheet,
 } from 'lucide-react';
 import { EmpresaData } from '../types';
-// NOVO IMPORT LIGANDO DIRETO AO FIREBASE
 import { getCompaniesStore } from '../lib/companiesStore';
+import { getFriendlyLabel } from '../lib/pdfFiller';
+
 
 interface DocumentFillFormProps {
   onNavigate?: (path: string) => void;
@@ -44,8 +45,9 @@ export const DocumentFillForm: React.FC<DocumentFillFormProps> = ({ onNavigate }
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [mappedFields, setMappedFields] = useState<
-    Array<{ pdfField: string; type: 'text' | 'checkbox'; value: string | boolean }>
+    Array<{ pdfField: string; label?: string; type: 'text' | 'checkbox' | 'radio'; value: string | boolean; options?: string[] }>
   >([]);
+
 
   // Helper to convert base64 to Blob URL
   const base64ToBlobUrl = (base64: string, mimeType = 'application/pdf'): string => {
@@ -624,12 +626,14 @@ export const DocumentFillForm: React.FC<DocumentFillFormProps> = ({ onNavigate }
             <div className="p-12 text-center space-y-4">
               <RefreshCw className="w-10 h-10 text-emerald-600 animate-spin mx-auto" />
               <div>
-                <h4 className="text-sm font-bold text-slate-800">Lendo e Mapeando Campos do PDF...</h4>
+                <h4 className="text-sm font-bold text-slate-800">Lendo e Identificando Campos do PDF...</h4>
                 <p className="text-xs text-slate-500 mt-1">
-                  Identificando campos de texto e checkboxes no arquivo {pdfFile?.name}...
+                  Mapeando os campos do documento <strong>{pdfFile?.name}</strong> diretamente com o cadastro da empresa selecionada...
                 </p>
               </div>
             </div>
+
+
           ) : (
             <div className="space-y-6">
               {/* SUCESSO OU STATUS DE MAPEAMENTO */}
@@ -681,24 +685,51 @@ export const DocumentFillForm: React.FC<DocumentFillFormProps> = ({ onNavigate }
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white">
-                        {mappedFields.map((item, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="px-3.5 py-2.5 font-mono text-slate-800 font-medium text-[11px]">
-                              {item.pdfField}
-                            </td>
+                        {mappedFields.map((item, idx) => {
+                          const displayLabel = item.label || getFriendlyLabel(item.pdfField);
+                          return (
+                            <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-3.5 py-2.5">
+                                <span className="block font-bold text-slate-900 text-xs">
+                                  {displayLabel}
+                                </span>
+                                <span className="block text-[10px] text-slate-400 font-mono mt-0.5">
+                                  ID Técnico no PDF: {item.pdfField}
+                                </span>
+                              </td>
+
                             <td className="px-3.5 py-2.5">
                               <span
                                 className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border uppercase ${
                                   item.type === 'checkbox'
                                     ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                    : item.type === 'radio'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
                                     : 'bg-blue-50 text-blue-700 border-blue-200'
                                 }`}
                               >
-                                {item.type === 'checkbox' ? 'Checkbox' : 'Texto'}
+                                {item.type === 'checkbox' ? 'Checkbox' : item.type === 'radio' ? 'Opção' : 'Texto'}
                               </span>
                             </td>
                             <td className="px-3.5 py-2">
-                              {item.type === 'checkbox' ? (
+                              {item.type === 'radio' && item.options && item.options.length > 0 ? (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {item.options.map((opt) => (
+                                    <button
+                                      key={opt}
+                                      type="button"
+                                      onClick={() => handleFieldChange(item.pdfField, opt)}
+                                      className={`px-2.5 py-1 text-[10px] font-bold rounded-full border transition-all cursor-pointer ${
+                                        item.value === opt
+                                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                          : 'bg-white text-slate-600 border-slate-300 hover:border-emerald-400 hover:text-emerald-700'
+                                      }`}
+                                    >
+                                      {opt}
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : item.type === 'checkbox' ? (
                                 <label className="inline-flex items-center space-x-2.5 cursor-pointer select-none">
                                   <input
                                     type="checkbox"
@@ -729,7 +760,9 @@ export const DocumentFillForm: React.FC<DocumentFillFormProps> = ({ onNavigate }
                               )}
                             </td>
                           </tr>
-                        ))}
+                        );
+                      })}
+
                       </tbody>
                     </table>
                   </div>

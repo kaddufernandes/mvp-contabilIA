@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Building2, Plus, Search, RefreshCw, MapPin, FileText, Landmark, Eye, CheckCircle2, Sparkles, AlertCircle, Hash, Trash2,
+  Building2, Plus, Search, RefreshCw, MapPin, Eye, CheckCircle2, Sparkles, AlertCircle, Trash2, ShieldCheck, Users,
 } from 'lucide-react';
-import { EmpresaData } from '../types';
-import { getAuthHeaders } from '../lib/apiClient';
+import { EmpresaData, Role } from '../types';
 import { validateEmpresaCompleta } from '../lib/schemas/empresaSchema';
-// NOVO IMPORT LIGANDO O DASHBOARD DIRETO AO FIREBASE
 import { getCompaniesStore, deleteCompanyStore } from '../lib/companiesStore';
+import { useAuth } from '../context/AuthContext';
 
 interface EmpresasDashboardProps {
   onNavigate: (path: string) => void;
@@ -34,6 +33,15 @@ const getCompanyStatusTitle = (c: EmpresaData): string => {
 export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
   onNavigate, onSelectEmpresa,
 }) => {
+  const { data: session } = useAuth();
+  const currentUserId = session?.user?.id;
+  const currentRole = (session?.user?.role || 'USER') as Role;
+
+  // Permissões derivadas do role
+  const isAdmin = currentRole === 'ADMIN';
+  const isContador = currentRole === 'CONTADOR';
+  const canManage = isAdmin || isContador; // pode ver carteira e ações em lote
+
   const [companies, setCompanies] = useState<EmpresaData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -43,12 +51,12 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
   const [empresaToDelete, setEmpresaToDelete] = useState<EmpresaData | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  // CHAMADA DIRETA AO FIREBASE BYPASSANDO A API
+  // Busca empresas respeitando o RBAC
   const fetchCompanies = async () => {
     setIsLoading(true);
     setErrorMsg(null);
     try {
-      const data = await getCompaniesStore();
+      const data = await getCompaniesStore(currentUserId, currentRole);
       setCompanies(data || []);
     } catch (err: any) {
       console.error('Erro ao buscar empresas:', err);
@@ -59,8 +67,9 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
   };
 
   useEffect(() => {
+    // Re-busca quando o role/userId mudar (ex: após login)
     fetchCompanies();
-  }, []);
+  }, [currentUserId, currentRole]);
 
   useEffect(() => {
     if (toastMsg) {
@@ -131,14 +140,29 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
               <Building2 className="w-5 h-5 text-emerald-600" />
             </div>
             <h2 className="text-xl font-bold text-slate-800 tracking-tight">
-              Consulta e Gestão de Empresas
+              {isAdmin ? 'Gestão Global de Empresas' : isContador ? 'Carteira de Clientes' : 'Minha Empresa'}
             </h2>
             <span className="text-xs font-bold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full border border-slate-200">
               {companies.length} Cadastrada{companies.length !== 1 ? 's' : ''}
             </span>
+            {/* Badge de Role */}
+            <span className={`hidden sm:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+              isAdmin
+                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                : isContador
+                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            }`}>
+              <ShieldCheck className="w-3 h-3" />
+              {currentRole}
+            </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Visualização consolidada de cadastros societários, inscrições fiscais (IE / IM) e dados extraídos via IA
+            {isAdmin
+              ? 'Visão global — todas as empresas do sistema'
+              : isContador
+              ? 'Empresas da sua carteira de clientes'
+              : 'Cadastro societário e fiscal da sua empresa'}
           </p>
         </div>
 
@@ -154,14 +178,17 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
 
-          <button
-            type="button"
-            onClick={() => onNavigate('/cadastro-empresa')}
-            className="inline-flex items-center px-4 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm hover:shadow transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4 mr-1.5" />
-            + Adicionar Nova Empresa
-          </button>
+          {/* Botão de adicionar empresa: apenas ADMIN e CONTADOR */}
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => onNavigate('/cadastro-empresa')}
+              className="inline-flex items-center px-4 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm hover:shadow transition-all cursor-pointer"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              + Adicionar Nova Empresa
+            </button>
+          )}
         </div>
       </div>
 
@@ -285,6 +312,9 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
               <tbody className="divide-y divide-slate-100 text-slate-700">
                 {filteredCompanies.map((c, idx) => {
                   const municipioUf = [c.endereco?.municipio, c.endereco?.uf].filter(Boolean).join(' / ');
+                  // Verifica se o usuário atual pode editar/excluir esta empresa
+                  const podeEditar = isAdmin || c.vinculoAtual === 'DONO' || isContador;
+                  const podeExcluir = isAdmin || c.vinculoAtual === 'DONO';
 
                   return (
                     <tr key={c.id || c.cnpj || idx} className="hover:bg-slate-50/80 transition-colors">
@@ -304,13 +334,16 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
                             {c.nome_fantasia}
                           </div>
                         )}
-                        <div className="flex items-center space-x-1 mt-1">
-                          {c.nire && (
-                            <span className="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded font-mono font-semibold border border-purple-200">
-                              NIRE: {c.nire}
-                            </span>
-                          )}
-                        </div>
+                        {/* Badge de vínculo */}
+                        {c.vinculoAtual && (
+                          <span className={`mt-1 inline-flex text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                            c.vinculoAtual === 'DONO'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-blue-50 text-blue-700 border-blue-200'
+                          }`}>
+                            {c.vinculoAtual}
+                          </span>
+                        )}
                       </td>
 
                       <td className="p-3.5 text-slate-600 whitespace-nowrap">
@@ -334,29 +367,38 @@ export const EmpresasDashboard: React.FC<EmpresasDashboardProps> = ({
 
                       <td className="p-3.5 text-center pr-5 whitespace-nowrap">
                         <div className="flex items-center justify-center space-x-2">
+                          {/* Ver detalhes: todos os roles podem ver */}
                           <button
                             type="button"
                             onClick={() => setSelectedEmpresaModal(c)}
                             className="p-1.5 text-slate-600 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                            title="Ver Detalhes Completo"
+                            title="Ver Detalhes"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(c)}
-                            className="px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEmpresaToDelete(c)}
-                            className="p-1.5 text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
-                            title="Excluir Empresa"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+
+                          {/* Editar: ADMIN, CONTADOR ou DONO */}
+                          {podeEditar && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(c)}
+                              className="px-2.5 py-1 text-xs font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+                            >
+                              Editar
+                            </button>
+                          )}
+
+                          {/* Excluir: somente ADMIN ou DONO */}
+                          {podeExcluir && (
+                            <button
+                              type="button"
+                              onClick={() => setEmpresaToDelete(c)}
+                              className="p-1.5 text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                              title="Excluir Empresa"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

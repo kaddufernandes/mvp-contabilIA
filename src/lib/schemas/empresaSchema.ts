@@ -48,9 +48,12 @@ export const EmpresaSchema = z.object({
   objeto_social: nonBlankString,
   inscricao_estadual: nonBlankString,
   inscricao_municipal: nonBlankString,
+  // Multi-tenant: mapa de vínculos { [uid]: 'DONO' | 'CONTADOR' }
+  usuariosVinculados: z.record(z.enum(['DONO', 'CONTADOR'])).optional(),
 });
 
 export type EmpresaSchemaType = z.infer<typeof EmpresaSchema>;
+
 
 /**
  * Validação de completude do cadastro utilizando Zod.

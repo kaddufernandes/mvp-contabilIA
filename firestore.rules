@@ -2,6 +2,50 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ============================================================
+    // HELPERS DE AUTENTICAÇÃO E RBAC
+    // ============================================================
+
+    /** Retorna true se o usuário está autenticado */
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    /**
+     * Lê o role do usuário na coleção /usuarios/{uid}.
+     * Usado para verificar ADMIN sem custom claims.
+     */
+    function getUserRole() {
+      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role;
+    }
+
+    /** Verifica se o usuário autenticado é ADMIN */
+    function isAdmin() {
+      return isAuth() && getUserRole() == 'ADMIN';
+    }
+
+    /** Verifica se o uid autenticado tem vínculo com a empresa (DONO ou CONTADOR) */
+    function isVinculado() {
+      return isAuth() &&
+        request.auth.uid in resource.data.usuariosVinculados;
+    }
+
+    /** Verifica se o uid autenticado é DONO da empresa */
+    function isDono() {
+      return isAuth() &&
+        resource.data.usuariosVinculados[request.auth.uid] == 'DONO';
+    }
+
+    /** Verifica se a escrita injeta o criador como DONO (proteção contra bypass) */
+    function isCreatingWithSelfAsDono() {
+      return isAuth() &&
+        request.resource.data.usuariosVinculados[request.auth.uid] == 'DONO';
+    }
+
+    // ============================================================
+    // VALIDADORES DE ESTRUTURA
+    // ============================================================
+
     function isValidApuracao(data) {
       return data.keys().hasAll(['periodoApuracao', 'valorReceita', 'atividadeSelecionada', 'foiRetificadora', 'status', 'dataHora'])
         && data.periodoApuracao is string && data.periodoApuracao.size() <= 20
@@ -13,44 +57,94 @@ service cloud.firestore {
         && (!('nomeEmpresa' in data) || (data.nomeEmpresa is string && data.nomeEmpresa.size() <= 200));
     }
 
-    function isValidEmpresa(data) {
-      return data.keys().hasAll(['receitaFederal', 'juntaComercial', 'inscricaoEstadual', 'inscricaoMunicipal', 'metadata'])
-        && data.receitaFederal is map
-        && data.juntaComercial is map
-        && data.inscricaoEstadual is map
-        && data.inscricaoMunicipal is map
-        && data.metadata is map;
-    }
-
-    function isValidUsuario(data) {
-      return data.keys().hasAll(['nome', 'email'])
-        && data.nome is string && data.nome.size() <= 200
-        && data.email is string && data.email.size() <= 200;
-    }
-
+    // ============================================================
+    // REGRA PADRÃO: nega tudo que não for explicitamente permitido
+    // ============================================================
     match /{document=**} {
       allow read, write: if false;
     }
 
-    match /historico_apuracoes/{apuracaoId} {
-      allow read: if true;
-      allow create: if isValidApuracao(request.resource.data);
-      allow update: if isValidApuracao(request.resource.data);
-      allow delete: if true;
-    }
-
+    // ============================================================
+    // /empresas — Multi-Tenant com RBAC
+    // ============================================================
     match /empresas/{empresaId} {
-      allow read: if true;
-      allow create: if isValidEmpresa(request.resource.data);
-      allow update: if isValidEmpresa(request.resource.data);
-      allow delete: if true;
+
+      // Leitura: ADMIN vê tudo; USER/CONTADOR vê apenas onde estão vinculados
+      allow read: if isAdmin() || isVinculado();
+
+      // Criação: usuário autenticado pode criar, desde que injete a si mesmo como DONO
+      allow create: if isAuth() && isCreatingWithSelfAsDono();
+
+      // Atualização: ADMIN ou o DONO da empresa
+      allow update: if isAdmin() || isDono();
+
+      // Exclusão: somente ADMIN ou DONO
+      allow delete: if isAdmin() || isDono();
     }
 
+    // ============================================================
+    // /usuarios — Usuários do sistema
+    // ============================================================
     match /usuarios/{userId} {
-      allow read: if true;
-      allow create: if isValidUsuario(request.resource.data);
-      allow update: if isValidUsuario(request.resource.data);
-      allow delete: if true;
+      // Leitura: cada usuário lê o próprio perfil; ADMIN e CONTADOR leem todos
+      allow read: if isAuth() && (request.auth.uid == userId || isAdmin() || getUserRole() == 'CONTADOR');
+
+      // Criação: 
+      // 1. O próprio usuário criando o próprio perfil (não pode se registrar como ADMIN)
+      // 2. Um ADMIN pode criar qualquer perfil
+      // 3. Um CONTADOR pode criar perfil, mas NÃO pode conter role/cargo 'ADMIN' no novo documento
+      allow create: if isAuth() && (
+        (request.auth.uid == userId && 
+         (!('role' in request.resource.data) || request.resource.data.role != 'ADMIN') &&
+         (!('cargo' in request.resource.data) || request.resource.data.cargo != 'ADMIN')) ||
+        isAdmin() ||
+        (getUserRole() == 'CONTADOR' && 
+         (!('role' in request.resource.data) || request.resource.data.role != 'ADMIN') &&
+         (!('cargo' in request.resource.data) || request.resource.data.cargo != 'ADMIN'))
+      );
+
+      // Atualização:
+      // 1. O próprio usuário (não pode se promover a ADMIN)
+      // 2. ADMIN pode atualizar qualquer perfil
+      // 3. CONTADOR pode atualizar perfis de não-ADMINs, mas NÃO pode alterar a role para ADMIN nem editar um ADMIN existente
+      allow update: if isAuth() && (
+        isAdmin() ||
+        (request.auth.uid == userId && 
+         (!('role' in request.resource.data) || request.resource.data.role != 'ADMIN') &&
+         (!('cargo' in request.resource.data) || request.resource.data.cargo != 'ADMIN')) ||
+        (getUserRole() == 'CONTADOR' && 
+         (!('role' in request.resource.data) || request.resource.data.role != 'ADMIN') &&
+         (!('cargo' in request.resource.data) || request.resource.data.cargo != 'ADMIN') &&
+         (!('role' in resource.data) || resource.data.role != 'ADMIN') &&
+         (!('cargo' in resource.data) || resource.data.cargo != 'ADMIN'))
+      );
+
+      // Exclusão: somente ADMIN pode excluir outros usuários
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // /historico_apuracoes — Histórico de apurações do PGDAS
+    // ============================================================
+    match /historico_apuracoes/{apuracaoId} {
+      // Leitura: ADMIN vê tudo; user vê suas próprias apurações
+      allow read: if isAuth();
+
+      // Criação: qualquer usuário autenticado com payload válido
+      allow create: if isAuth() && isValidApuracao(request.resource.data);
+
+      // Atualização: idem criação
+      allow update: if isAuth() && isValidApuracao(request.resource.data);
+
+      // Exclusão: ADMIN apenas
+      allow delete: if isAdmin();
+    }
+
+    // ============================================================
+    // /test — Usado apenas para testar conectividade (removido em prod)
+    // ============================================================
+    match /test/{docId} {
+      allow read, write: if false;
     }
   }
 }

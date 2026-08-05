@@ -322,44 +322,68 @@ export async function runEmitirDasRpa(params: EmitirDasParams) {
     }
 
     await digitarValorMonetario(page, '.receita-valor', receitaInterna);
-    await page.click('.btn-calcular');
-    await page.waitForLoadState('domcontentloaded');
-
-    // 10. VALORES FIXOS (SÓ PREENCHE SE O USUÁRIO MANDAR)
-    console.log('[RPA] Preenchendo tela de Valores Fixos (se informados)...');
-    await page.waitForSelector('button[type="submit"]:has-text("Calcular"), input[type="submit"][value*="Calcular"], .btn-calcular, button:has-text("Calcular")', { state: 'visible', timeout: 30000 });
     
+    console.log('[RPA] Clicando em Calcular na tela de Receitas e aguardando a próxima página...');
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => {}),
+      page.click('.btn-calcular')
+    ]);
+    await page.waitForTimeout(1000);
+
+    // 10. VALORES FIXOS — preenche ICMS/ISS fixos se informados e avança para o Resumo
+    console.log('[RPA] Verificando tela de Valores Fixos...');
     const isValorValido = (v?: string) => v && v.trim() !== '' && v !== '0,00' && v !== '0';
+    const temValorFixo = isValorValido(params.valorFixoIcms) || isValorValido(params.valorFixoIss);
 
-    if (isValorValido(params.valorFixoIcms)) {
-      const icmsInput = page.locator('input[name="icms"]');
-      if (await icmsInput.count() > 0) {
-        console.log(`[RPA] Preenchendo ICMS: ${params.valorFixoIcms}`);
-        await digitarValorMonetario(page, 'input[name="icms"]', params.valorFixoIcms!);
+    const urlAtual = page.url();
+    const isTelaValoresFixos = urlAtual.includes('ValoresFixos') || (await page.locator('h3:has-text("Valores Fixos")').count()) > 0;
+
+    if (isTelaValoresFixos) {
+      console.log('[RPA] Tela de Valores Fixos confirmada.');
+      if (temValorFixo) {
+        if (isValorValido(params.valorFixoIcms)) {
+          const icmsInput = page.locator('input[name="icms"]');
+          if ((await icmsInput.count()) > 0) {
+            console.log(`[RPA] Preenchendo ICMS fixo: ${params.valorFixoIcms}`);
+            await digitarValorMonetario(page, 'input[name="icms"]', params.valorFixoIcms!);
+          }
+        }
+        if (isValorValido(params.valorFixoIss)) {
+          const issInput = page.locator('input[name="iss"]');
+          if ((await issInput.count()) > 0) {
+            console.log(`[RPA] Preenchendo ISS fixo: ${params.valorFixoIss}`);
+            await digitarValorMonetario(page, 'input[name="iss"]', params.valorFixoIss!);
+          }
+        }
+      } else {
+        console.log('[RPA] Valores fixos são 0 ou não informados. Avançando diretamente para o Resumo...');
       }
-    }
 
-    if (isValorValido(params.valorFixoIss)) {
-      const issInput = page.locator('input[name="iss"]');
-      if (await issInput.count() > 0) {
-        console.log(`[RPA] Preenchendo ISS: ${params.valorFixoIss}`);
-        await digitarValorMonetario(page, 'input[name="iss"]', params.valorFixoIss!);
-      }
+      console.log('[RPA] Enviando formulário da tela de Valores Fixos...');
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {}),
+        page.evaluate(() => {
+          const btn = document.querySelector('form button[type="submit"], form .btn-success') as HTMLElement;
+          if (btn) {
+            btn.click();
+          } else {
+            const form = document.querySelector('form') as HTMLFormElement;
+            if (form) form.submit();
+          }
+        })
+      ]);
+      await page.waitForTimeout(1500);
+    } else {
+      console.log(`[RPA] Página de Valores Fixos não exibida ou já ultrapassada (URL: ${urlAtual}).`);
     }
-
-    const btnCalcularFixos = page.locator('button[type="submit"]:has-text("Calcular"), input[type="submit"][value*="Calcular"], .btn-calcular, button:has-text("Calcular")').first();
-    if (await btnCalcularFixos.count() > 0) {
-      await btnCalcularFixos.click();
-    }
-    await page.waitForLoadState('networkidle').catch(() => page.waitForLoadState('domcontentloaded'));
 
     // 11. TELA DE RESUMO E EXTRAÇÃO DE DADOS DA .table-bordered
-    console.log('[RPA] Resumo alcançado! Extraindo Tributos...');
-    // Aguarda o formulário de transmissão que contém a tabela de tributos do resumo
-    await page.waitForSelector('form[action*="Transmitir"] .table-bordered, form[action*="Transmitir"] table', { state: 'visible', timeout: 30000 });
+    console.log('[RPA] Resumo alcançado! Aguardando tabelas de tributos...');
+    await page.waitForSelector('.table-bordered, form[action*="Transmitir"]', { state: 'attached', timeout: 45000 });
+    console.log(`[RPA] URL atual no Resumo: ${page.url()}`);
     
-    // Usa a tabela dentro do form de transmissão (não a tabela de receitas do topo)
-    const tableResumo = page.locator('form[action*="Transmitir"] .table-bordered, form[action*="Transmitir"] table').first();
+    // Usa a tabela de resumo dos tributos
+    const tableResumo = page.locator('form[action*="Transmitir"] .table-bordered, .table-bordered').last();
 
     const dadosCalculados = {
       irpj: await tableResumo.locator('tr').nth(1).locator('td').nth(0).innerText().catch(() => '0,00'),

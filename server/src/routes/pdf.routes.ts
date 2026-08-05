@@ -6,6 +6,7 @@ import { getGeminiClient } from "../config/gemini";
 const router = Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
+
 // POST /api/fill-pdf
 router.post("/fill-pdf", upload.single("pdfFile"), async (req, res) => {
   try {
@@ -26,6 +27,7 @@ router.post("/fill-pdf", upload.single("pdfFile"), async (req, res) => {
       return res.status(400).json({ success: false, error: "JSON da empresa inválido." });
     }
 
+    // Processamento 100% local e determinístico usando pdfFiller
     const { mappedFields, hasFormFields } = await parseAndMapPdfFields(file.buffer, empresa);
 
     return res.json({
@@ -41,6 +43,8 @@ router.post("/fill-pdf", upload.single("pdfFile"), async (req, res) => {
     });
   }
 });
+
+
 
 // POST /api/generate-pdf
 router.post("/generate-pdf", upload.single("pdfFile"), async (req, res) => {

@@ -1,3 +1,9 @@
+// ============================================================
+// RBAC — Tipos de perfil de acesso
+// ============================================================
+export type Role = 'USER' | 'CONTADOR' | 'ADMIN';
+export type VinculoTipo = 'DONO' | 'CONTADOR';
+
 export interface Cnae {
   codigo: string;
   descricao: string;
@@ -25,6 +31,11 @@ export interface EmpresaData {
   userId?: string;
   createdAt?: string;
   updatedAt?: string;
+
+  /** Multi-tenant: mapa de usuários vinculados { [uid]: 'DONO' | 'CONTADOR' } */
+  usuariosVinculados?: Record<string, VinculoTipo>;
+  /** Vínculo do usuário atual com esta empresa (populado no frontend) */
+  vinculoAtual?: VinculoTipo;
   cnpj: string;
   razao_social: string;
   nome_fantasia: string;
